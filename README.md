@@ -40,13 +40,29 @@ GEMINI_API_KEY=your_gemini_api_key_here
 DEFAULT_LLM_PROVIDER=gemini
 ```
 
-### 3. Launch the Floating Assistant Widget
+### 3. Launch Modes (App & Web Versions)
 
-Run the launcher script:
+Sazon features two modern launch modes (both with the next-gen glassmorphic UI) plus a legacy fallback:
 
-```bash
-python run.py
-```
+- **📱 Desktop App Version (Standalone App Window):**
+  ```bash
+  python run.py
+  # or: python run.py --app
+  ```
+  *Launches Sazon as a dedicated native desktop application window (no browser address bar/tabs).*
+
+- **🌐 Web Version (Browser Dashboard):**
+  ```bash
+  python run.py --web
+  ```
+  *Launches Sazon in your default web browser on `http://127.0.0.1:8000`.*
+
+- **🖥️ Legacy Tkinter GUI:**
+  ```bash
+  python run.py --gui
+  ```
+  *Launches the original Tkinter desktop window.*
+
 
 ---
 

@@ -283,13 +283,14 @@ class MemoryManager:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class LLMClient:
-    """Unified LLM client for Sazon (Gemini, OpenAI, sample demo model, or local fallback)."""
+    """Unified LLM client for Sazon (Gemini, OpenAI, OpenRouter, sample demo model, or local fallback)."""
 
     def __init__(self, provider: Optional[str] = None, model: Optional[str] = None):
         self.provider = (provider or os.getenv("DEFAULT_LLM_PROVIDER", "sample")).lower()
         self.model = model
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         self.openai_key = os.getenv("OPENAI_API_KEY")
+        self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
 
     def generate(self, prompt: str, system_instruction: Optional[str] = None, json_mode: bool = False) -> str:
         provider = (self.provider or "").lower()
@@ -299,9 +300,17 @@ class LLMClient:
         if provider in ("sample", "mock", "demo") or "sample" in model_name or "demo" in model_name:
             return self._sample_model_response(prompt, json_mode)
 
-        if provider == "gemini" and self.gemini_key:
+        if provider == "openrouter" and self.openrouter_key:
+            return self._call_openrouter(prompt, system_instruction, json_mode)
+        elif provider == "gemini" and self.gemini_key:
             return self._call_gemini(prompt, system_instruction, json_mode)
         elif provider == "openai" and self.openai_key:
+            return self._call_openai(prompt, system_instruction, json_mode)
+        elif self.openrouter_key:
+            return self._call_openrouter(prompt, system_instruction, json_mode)
+        elif self.gemini_key:
+            return self._call_gemini(prompt, system_instruction, json_mode)
+        elif self.openai_key:
             return self._call_openai(prompt, system_instruction, json_mode)
         else:
             return self._fallback_response(prompt, json_mode)
@@ -335,6 +344,25 @@ class LLMClient:
             else:
                 return f"Sazon completed your request: \"{prompt[:80]}\" successfully."
 
+    def _call_openrouter(self, prompt: str, system_instruction: Optional[str], json_mode: bool) -> str:
+        try:
+            import openai
+            client = openai.OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=self.openrouter_key
+            )
+            model_name = self.model or os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1")
+            messages = []
+            if system_instruction:
+                messages.append({"role": "system", "content": system_instruction})
+            messages.append({"role": "user", "content": prompt})
+            kwargs = {"response_format": {"type": "json_object"}} if json_mode else {}
+            response = client.chat.completions.create(model=model_name, messages=messages, **kwargs)
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            logger.error(f"OpenRouter API call failed: {e}")
+            return self._fallback_response(prompt, json_mode)
+
     def _call_gemini(self, prompt: str, system_instruction: Optional[str], json_mode: bool) -> str:
         try:
             from google import genai
@@ -362,6 +390,7 @@ class LLMClient:
         except Exception as e:
             logger.error(f"OpenAI API call failed: {e}")
             return self._fallback_response(prompt, json_mode)
+
 
     def _fallback_response(self, prompt: str, json_mode: bool) -> str:
         """Local smart fallback when API key is not configured."""
@@ -510,8 +539,9 @@ Create a concise and structured plan to achieve this goal autonomously.
 class SazonExecutor:
     """Autonomous agent execution engine for Sazon."""
 
-    def __init__(self, goal_request: GoalRequest):
+    def __init__(self, goal_request: GoalRequest, step_callback: Optional[Callable[[AgentState, Optional[ExecutionStep]], None]] = None):
         self.goal_request = goal_request
+        self.step_callback = step_callback
         self.memory = MemoryManager()
         self.llm = LLMClient(provider=goal_request.llm_provider, model=goal_request.model)
         self.state = AgentState(
@@ -535,6 +565,11 @@ class SazonExecutor:
             content=f"Generated {len(self.state.subtasks)} subtasks for goal: {self.goal_request.goal}",
             category="plan"
         )
+        if self.step_callback:
+            try:
+                self.step_callback(self.state, None)
+            except Exception as e:
+                logger.warning(f"Error in step_callback initial call: {e}")
 
         # Step 2: Execution Loop
         while not self.state.is_finished and self.state.iteration < self.state.max_iterations:
@@ -549,7 +584,7 @@ class SazonExecutor:
             self._evaluate_goal_completion()
 
         elapsed = time.time() - start_time
-        return ExecutionResult(
+        result = ExecutionResult(
             goal=self.state.goal,
             success=all(t.status == TaskStatus.COMPLETED for t in self.state.subtasks) if self.state.subtasks else True,
             final_answer=self.state.final_answer or "Goal executed successfully.",
@@ -558,6 +593,12 @@ class SazonExecutor:
             total_iterations=self.state.iteration,
             execution_time_seconds=round(elapsed, 2)
         )
+        if self.step_callback:
+            try:
+                self.step_callback(self.state, None)
+            except Exception as e:
+                logger.warning(f"Error in step_callback final call: {e}")
+        return result
 
     def _execute_subtask(self, task: SubTask):
         task.status = TaskStatus.IN_PROGRESS
@@ -589,6 +630,12 @@ class SazonExecutor:
             status=task.status
         )
         self.state.completed_steps.append(step)
+        if self.step_callback:
+            try:
+                self.step_callback(self.state, step)
+            except Exception as e:
+                logger.warning(f"Error in step_callback subtask call: {e}")
+
 
     def _get_next_subtask(self) -> Optional[SubTask]:
         for task in self.state.subtasks:

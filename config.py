@@ -65,3 +65,13 @@ class Theme:
     @staticmethod
     def display(size: int = 13, weight: str = "bold") -> tuple:
         return ("Segoe UI", size, weight)
+
+
+# ─── OpenRouter & Model Defaults ─────────────────────────────────────────────
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-r1"
+
+# ─── Web Server Defaults ──────────────────────────────────────────────────────
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8000
+
