@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sazon — Autonomous AI Laptop Assistant</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Main Glassmorphism Styling -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="background-canvas">
+        <div class="gradient-halo halo-1"></div>
+        <div class="gradient-halo halo-2"></div>
+        <div class="gradient-halo halo-3"></div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header Navigation Bar -->
+        <header class="navbar-glass">
+            <div class="nav-brand">
+                <div class="mascot-orb-wrapper" id="mascotOrb">
+                    <svg class="orb-svg" viewBox="0 0 100 100">
+                        <circle class="ring ring-outer" cx="50" cy="50" r="44" />
+                        <circle class="ring ring-mid" cx="50" cy="50" r="34" />
+                        <circle class="ring ring-inner" cx="50" cy="50" r="24" />
+                        <circle class="core-glow" cx="50" cy="50" r="14" />
+                    </svg>
+                    <div class="status-pulse-dot" id="statusPulse"></div>
+                </div>
+                <div class="brand-text">
+                    <h1 class="brand-title">SAZON <span class="badge-tag">v2.0 AI</span></h1>
+                    <p class="brand-subtitle" id="agentStatusText">Ready & Active</p>
+                </div>
+            </div>
+
+            <div class="nav-controls">
+                <div class="model-select-wrapper">
+                    <label for="modelSelect" class="select-label">AI Model</label>
+                    <select id="modelSelect" class="glass-select">
+                        <option value="sample/sazon">🤖 Sazon Demo (No Key)</option>
+                        <option value="openrouter/deepseek-r1">🧠 OpenRouter: DeepSeek R1</option>
+                        <option value="openrouter/claude-3.5-sonnet">⚡ OpenRouter: Claude 3.5 Sonnet</option>
+                        <option value="openrouter/llama-3.3-70b">🦙 OpenRouter: Llama 3.3 70B</option>
+                        <option value="openrouter/gemini-flash-free">🆓 OpenRouter: Gemini 2.0 (Free)</option>
+                        <option value="gemini/gemini-2.5-flash">⚡ Gemini 2.5 Flash</option>
+                        <option value="gemini/gemini-1.5-pro">🧠 Gemini 1.5 Pro</option>
+                        <option value="openai/gpt-4o-mini">🚀 GPT-4o Mini</option>
+                        <option value="openai/gpt-4o">🔥 GPT-4o</option>
+                    </select>
+                </div>
+                <button class="icon-btn" id="btnRefreshHealth" title="Diagnostics & Health">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M2.13 15.57a10 10 0 1 0 4.2-9.57L2.5 8"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="dashboard-grid">
+            <!-- Left Panel: Input & Task Timeline -->
+            <section class="panel-glass left-panel">
+                <!-- Prompt Input Bar -->
+                <div class="card-glass prompt-card">
+                    <div class="card-header">
+                        <span class="card-icon">⚡</span>
+                        <h3>Autonomous Goal Input</h3>
+                    </div>
+                    
+                    <!-- Quick Preset Chips -->
+                    <div class="quick-chips">
+                        <button class="chip" data-goal="Check system status and hardware diagnostic details">
+                            <span>💻</span> System Diagnostic
+                        </button>
+                        <button class="chip" data-goal="Search for python and config files in current workspace">
+                            <span>🔍</span> Explore Files
+                        </button>
+                        <button class="chip" data-goal="Create a summary report of environment and python tools">
+                            <span>📝</span> Build Report
+                        </button>
+                        <button class="chip" data-goal="Calculate math expression: (1024 * 4) + sqrt(144)">
+                            <span>🧮</span> Math Tool
+                        </button>
+                    </div>
+
+                    <div class="input-glow-wrapper">
+                        <textarea id="promptInput" class="glass-textarea" placeholder="What task should Sazon accomplish for you today? (e.g. Inspect system performance, search files, run scripts...)" rows="3"></textarea>
+                        <div class="input-actions">
+                            <span class="shortcut-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to execute</span>
+                            <button id="btnExecute" class="btn-primary glow-btn">
+                                <span class="btn-text">Execute Goal</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Execution Progress Timeline -->
+                <div class="card-glass timeline-card">
+                    <div class="card-header border-b">
+                        <div class="header-title">
+                            <span class="card-icon">🎯</span>
+                            <h3>Subtask Timeline & Plan</h3>
+                        </div>
+                        <div class="progress-indicator">
+                            <span id="progressPercent">0%</span>
+                            <div class="progress-bar-bg">
+                                <div id="progressBarFill" class="progress-bar-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="subtaskContainer" class="subtask-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">✨</div>
+                            <p>No active execution plan yet.</p>
+                            <span>Enter a goal above or click a quick action chip to start Sazon.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Live Terminal Output -->
+            <section class="panel-glass right-panel">
+                <div class="card-glass terminal-card">
+                    <div class="card-header border-b">
+                        <div class="header-title">
+                            <span class="card-icon">🖥️</span>
+                            <h3>Live Execution Console</h3>
+                        </div>
+                        <div class="terminal-actions">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoScrollCheck" checked>
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-label">Auto-scroll</span>
+                            </label>
+                            <button id="btnClearConsole" class="glass-btn-sm" title="Clear Console">Clear</button>
+                        </div>
+                    </div>
+
+                    <div id="consoleOutput" class="console-body">
+                        <div class="log-entry system-log">
+                            <span class="log-time">[00:00:00]</span>
+                            <span class="log-badge badge-system">SYSTEM</span>
+                            <span class="log-msg">Sazon Autonomous Assistant initialized. Ready for instructions.</span>
+                        </div>
+                    </div>
+
+                    <div class="terminal-footer">
+                        <div class="footer-stat">
+                            <span class="stat-label">Execution Time:</span>
+                            <span id="statTime" class="stat-value">0.0s</span>
+                        </div>
+                        <div class="footer-stat">
+                            <span class="stat-label">Total Steps:</span>
+                            <span id="statSteps" class="stat-value">0</span>
+                        </div>
+                        <div class="footer-stat">
+                            <span class="stat-label">Active Provider:</span>
+                            <span id="statProvider" class="stat-value">sample</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Script Entry Point -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
