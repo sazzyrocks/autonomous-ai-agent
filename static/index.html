@@ -4,14 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sazon — Autonomous AI Laptop Assistant</title>
-    <!-- Google Fonts -->
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Main Glassmorphism Styling -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Framer Motion Standalone Core Engine -->
+    <script src="/static/vendor/motion.js"></script>
+    <!-- Stylesheet -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <!-- Ambient Background Light Grid -->
     <div class="background-canvas">
         <div class="gradient-halo halo-1"></div>
         <div class="gradient-halo halo-2"></div>
@@ -19,82 +22,143 @@
         <div class="grid-overlay"></div>
     </div>
 
-    <div class="app-container">
-        <!-- Header Navigation Bar -->
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="app-container" id="appMainContainer">
+        <!-- Modern Header Navigation Bar -->
         <header class="navbar-glass">
             <div class="nav-brand">
-                <div class="mascot-orb-wrapper" id="mascotOrb">
+                <div class="mascot-orb-wrapper" id="mascotOrb" title="Sazon Mascot — Click for reaction!">
                     <svg class="orb-svg" viewBox="0 0 100 100">
                         <circle class="ring ring-outer" cx="50" cy="50" r="44" />
                         <circle class="ring ring-mid" cx="50" cy="50" r="34" />
                         <circle class="ring ring-inner" cx="50" cy="50" r="24" />
-                        <circle class="core-glow" cx="50" cy="50" r="14" />
+                        <circle class="core-glow" id="orbCore" cx="50" cy="50" r="14" />
                     </svg>
                     <div class="status-pulse-dot" id="statusPulse"></div>
                 </div>
                 <div class="brand-text">
-                    <h1 class="brand-title">SAZON <span class="badge-tag">v2.0 AI</span></h1>
+                    <div class="brand-title-row">
+                        <h1 class="brand-title">SAZON</h1>
+                        <span class="badge-tag">v2.1 AI</span>
+                        <span class="mode-badge" id="engineBadge">Local Engine</span>
+                    </div>
                     <p class="brand-subtitle" id="agentStatusText">Ready & Active</p>
                 </div>
             </div>
 
-            <div class="nav-controls">
+            <div class="nav-center">
                 <div class="model-select-wrapper">
-                    <label for="modelSelect" class="select-label">AI Model</label>
-                    <select id="modelSelect" class="glass-select">
-                        <option value="sample/sazon">🤖 Sazon Demo (No Key)</option>
-                        <option value="openrouter/deepseek-r1">🧠 OpenRouter: DeepSeek R1</option>
-                        <option value="openrouter/claude-3.5-sonnet">⚡ OpenRouter: Claude 3.5 Sonnet</option>
-                        <option value="openrouter/llama-3.3-70b">🦙 OpenRouter: Llama 3.3 70B</option>
-                        <option value="openrouter/gemini-flash-free">🆓 OpenRouter: Gemini 2.0 (Free)</option>
-                        <option value="gemini/gemini-2.5-flash">⚡ Gemini 2.5 Flash</option>
-                        <option value="gemini/gemini-1.5-pro">🧠 Gemini 1.5 Pro</option>
-                        <option value="openai/gpt-4o-mini">🚀 GPT-4o Mini</option>
-                        <option value="openai/gpt-4o">🔥 GPT-4o</option>
+                    <div class="select-prefix-icon">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </div>
+                    <select id="modelSelect" class="glass-select" title="Select AI Execution Engine">
+                        <optgroup label="⚡ Local (No API Key Required)" id="optgroupLocal">
+                            <option value="sample/sazon">🤖 Sazon Smart Local Engine (Offline / No Key)</option>
+                        </optgroup>
+                        <optgroup label="🆓 Free Cloud Models" id="optgroupFree">
+                            <option value="openrouter/gemini-flash-free">🆓 OpenRouter: Gemini 2.0 (Free)</option>
+                        </optgroup>
+                        <optgroup label="🧠 Cloud Pro Models" id="optgroupCloud">
+                            <option value="openrouter/deepseek-r1">🧠 OpenRouter: DeepSeek R1</option>
+                            <option value="openrouter/claude-3.5-sonnet">⚡ OpenRouter: Claude 3.5 Sonnet</option>
+                            <option value="openrouter/llama-3.3-70b">🦙 OpenRouter: Llama 3.3 70B</option>
+                            <option value="gemini/gemini-2.5-flash">⚡ Gemini 2.5 Flash</option>
+                            <option value="openai/gpt-4o-mini">🚀 GPT-4o Mini</option>
+                        </optgroup>
                     </select>
                 </div>
-                <button class="icon-btn" id="btnRefreshHealth" title="Diagnostics & Health">
+            </div>
+
+            <div class="nav-controls">
+                <button class="nav-action-btn zero-key-pill" id="btnZeroKeyGuide" title="Learn how to use Sazon with zero API keys!">
+                    <span class="btn-icon">💡</span>
+                    <span class="btn-label">No API Key?</span>
+                </button>
+
+                <button class="icon-btn" id="btnToggleSound" title="Toggle Sound Feedback">
+                    <svg id="soundIconOn" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <svg id="soundIconOff" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <line x1="23" y1="9" x2="17" y2="15"></line>
+                        <line x1="17" y1="9" x2="23" y2="15"></line>
+                    </svg>
+                </button>
+
+                <button class="icon-btn" id="btnRefreshHealth" title="Diagnostics & System Telemetry">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.5 2v6h-6M2.13 15.57a10 10 0 1 0 4.2-9.57L2.5 8"></path>
+                    </svg>
+                </button>
+
+                <button class="icon-btn mascot-toggle-btn" id="btnMiniMascot" title="Toggle Floating Mascot Companion">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="4"></rect>
+                        <circle cx="8.5" cy="9.5" r="1.5"></circle>
+                        <circle cx="15.5" cy="9.5" r="1.5"></circle>
+                        <path d="M9 15h6"></path>
                     </svg>
                 </button>
             </div>
         </header>
 
-        <!-- Main Content Grid -->
+        <!-- Main Dashboard Grid -->
         <main class="dashboard-grid">
-            <!-- Left Panel: Input & Task Timeline -->
+            <!-- Left Panel: Input & Subtask Timeline -->
             <section class="panel-glass left-panel">
-                <!-- Prompt Input Bar -->
-                <div class="card-glass prompt-card">
+                <!-- Autonomous Goal Card -->
+                <div class="card-glass prompt-card" id="promptCard">
                     <div class="card-header">
-                        <span class="card-icon">⚡</span>
-                        <h3>Autonomous Goal Input</h3>
+                        <div class="header-title">
+                            <span class="card-icon glow-icon">⚡</span>
+                            <h3>Autonomous Goal Controller</h3>
+                        </div>
+                        <span class="header-pill">AI Agent Workflow</span>
                     </div>
-                    
-                    <!-- Quick Preset Chips -->
-                    <div class="quick-chips">
+
+                    <!-- Filter / Quick Action Chips -->
+                    <div class="quick-chips" id="quickChipsContainer">
                         <button class="chip" data-goal="Check system status and hardware diagnostic details">
-                            <span>💻</span> System Diagnostic
+                            <span class="chip-icon">💻</span>
+                            <span>System Diagnostics</span>
                         </button>
                         <button class="chip" data-goal="Search for python and config files in current workspace">
-                            <span>🔍</span> Explore Files
+                            <span class="chip-icon">🔍</span>
+                            <span>Explore Workspace</span>
                         </button>
-                        <button class="chip" data-goal="Create a summary report of environment and python tools">
-                            <span>📝</span> Build Report
+                        <button class="chip" data-goal="Create a comprehensive system report file on disk">
+                            <span class="chip-icon">📝</span>
+                            <span>Build Report</span>
                         </button>
-                        <button class="chip" data-goal="Calculate math expression: (1024 * 4) + sqrt(144)">
-                            <span>🧮</span> Math Tool
+                        <button class="chip" data-goal="Calculate math expression: (1024 * 8) + sqrt(256)">
+                            <span class="chip-icon">🧮</span>
+                            <span>Math Evaluation</span>
+                        </button>
+                        <button class="chip" data-goal="Run shell command to check network ip configuration">
+                            <span class="chip-icon">⚡</span>
+                            <span>Shell Command</span>
                         </button>
                     </div>
 
                     <div class="input-glow-wrapper">
                         <textarea id="promptInput" class="glass-textarea" placeholder="What task should Sazon accomplish for you today? (e.g. Inspect system performance, search files, run scripts...)" rows="3"></textarea>
+                        
+                        <!-- Input Control Footer -->
                         <div class="input-actions">
-                            <span class="shortcut-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to execute</span>
+                            <div class="input-meta">
+                                <span class="shortcut-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to execute</span>
+                            </div>
+
                             <button id="btnExecute" class="btn-primary glow-btn">
                                 <span class="btn-text">Execute Goal</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                     <line x1="22" y1="2" x2="11" y2="13"></line>
                                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                                 </svg>
@@ -103,69 +167,100 @@
                     </div>
                 </div>
 
-                <!-- Execution Progress Timeline -->
-                <div class="card-glass timeline-card">
+                <!-- Execution Timeline Card -->
+                <div class="card-glass timeline-card" id="timelineCard">
                     <div class="card-header border-b">
                         <div class="header-title">
                             <span class="card-icon">🎯</span>
                             <h3>Subtask Timeline & Plan</h3>
+                            <span class="task-count-badge" id="taskCountBadge">0 tasks</span>
                         </div>
+                        
                         <div class="progress-indicator">
-                            <span id="progressPercent">0%</span>
+                            <span id="progressPercent" class="progress-percent-text">0%</span>
                             <div class="progress-bar-bg">
                                 <div id="progressBarFill" class="progress-bar-fill"></div>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Filter Tabs -->
+                    <div class="timeline-tabs">
+                        <button class="tab-btn active" data-filter="all">All Subtasks</button>
+                        <button class="tab-btn" data-filter="in_progress">In Progress</button>
+                        <button class="tab-btn" data-filter="completed">Completed</button>
+                    </div>
+
+                    <!-- Subtask Cards Container -->
                     <div id="subtaskContainer" class="subtask-list">
                         <div class="empty-state">
-                            <div class="empty-icon">✨</div>
-                            <p>No active execution plan yet.</p>
-                            <span>Enter a goal above or click a quick action chip to start Sazon.</span>
+                            <div class="empty-icon-orbit">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                </svg>
+                            </div>
+                            <h4>No active plan in progress</h4>
+                            <p>Type a goal above or click a quick action chip. Sazon will decompose it into atomic subtasks using spring-physics workflow.</p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Panel: Live Terminal Output -->
+            <!-- Right Panel: Live Execution Console -->
             <section class="panel-glass right-panel">
-                <div class="card-glass terminal-card">
+                <div class="card-glass terminal-card" id="terminalCard">
                     <div class="card-header border-b">
                         <div class="header-title">
                             <span class="card-icon">🖥️</span>
                             <h3>Live Execution Console</h3>
+                            <span class="live-dot-pulse"></span>
                         </div>
                         <div class="terminal-actions">
-                            <label class="toggle-switch">
+                            <div class="terminal-search-box">
+                                <input type="text" id="logSearchInput" placeholder="Filter logs..." class="terminal-search-input">
+                            </div>
+                            <label class="toggle-switch" title="Auto-scroll on new output">
                                 <input type="checkbox" id="autoScrollCheck" checked>
                                 <span class="toggle-slider"></span>
-                                <span class="toggle-label">Auto-scroll</span>
+                                <span class="toggle-label">Scroll</span>
                             </label>
+                            <button id="btnCopyConsole" class="glass-btn-sm" title="Copy Console Logs">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                <span>Copy</span>
+                            </button>
                             <button id="btnClearConsole" class="glass-btn-sm" title="Clear Console">Clear</button>
                         </div>
                     </div>
 
+                    <!-- Live Log Body -->
                     <div id="consoleOutput" class="console-body">
                         <div class="log-entry system-log">
                             <span class="log-time">[00:00:00]</span>
                             <span class="log-badge badge-system">SYSTEM</span>
-                            <span class="log-msg">Sazon Autonomous Assistant initialized. Ready for instructions.</span>
+                            <span class="log-msg">Sazon Autonomous Assistant v2.1 initialized. Ready for instructions.</span>
                         </div>
                     </div>
 
+                    <!-- Footer Telemetry Stats -->
                     <div class="terminal-footer">
                         <div class="footer-stat">
-                            <span class="stat-label">Execution Time:</span>
+                            <span class="stat-label">Execution Time</span>
                             <span id="statTime" class="stat-value">0.0s</span>
                         </div>
                         <div class="footer-stat">
-                            <span class="stat-label">Total Steps:</span>
+                            <span class="stat-label">Total Steps</span>
                             <span id="statSteps" class="stat-value">0</span>
                         </div>
                         <div class="footer-stat">
-                            <span class="stat-label">Active Provider:</span>
-                            <span id="statProvider" class="stat-value">sample</span>
+                            <span class="stat-label">Engine Provider</span>
+                            <span id="statProvider" class="stat-value">sample (local)</span>
+                        </div>
+                        <div class="footer-stat">
+                            <span class="stat-label">Zero-Key Status</span>
+                            <span id="statZeroKey" class="stat-value text-emerald">Active</span>
                         </div>
                     </div>
                 </div>
@@ -173,7 +268,81 @@
         </main>
     </div>
 
-    <!-- Script Entry Point -->
+    <!-- Floating Mascot Companion Bubble (Mini Mode) -->
+    <div id="floatingMascotWidget" class="floating-mascot-widget hidden">
+        <div class="mascot-bubble" id="mascotSpeechBubble">
+            <span class="bubble-text">Hello! Sazon is here, how may I help you today?</span>
+            <button class="bubble-close-btn" id="btnHideBubble">×</button>
+        </div>
+        <div class="floating-mascot-avatar" id="floatingMascotAvatar" title="Click to expand Sazon!">
+            <svg class="orb-svg-mini" viewBox="0 0 100 100">
+                <circle class="ring ring-outer" cx="50" cy="50" r="44" />
+                <circle class="ring ring-mid" cx="50" cy="50" r="34" />
+                <circle class="core-glow" cx="50" cy="50" r="18" />
+            </svg>
+            <div class="floating-badge">🤖</div>
+        </div>
+    </div>
+
+    <!-- Zero API Key Guide Modal -->
+    <div id="zeroKeyModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <span class="modal-icon">💡</span>
+                    <h3>How to Use Sazon Without Any API Keys</h3>
+                </div>
+                <button class="modal-close-btn" id="btnCloseZeroKeyModal">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-intro">
+                    You do <strong>not</strong> need paid API keys or credit cards to use Sazon! Here are 3 powerful zero-cost ways:
+                </p>
+
+                <div class="guide-cards-grid">
+                    <!-- Option 1: Ollama -->
+                    <div class="guide-card active-guide">
+                        <div class="guide-header">
+                            <span class="guide-badge">Option 1: Recommended</span>
+                            <h4>🦙 Ollama (100% Free, Local & Private)</h4>
+                        </div>
+                        <p>Ollama runs open-source AI models directly on your laptop CPU/GPU. No internet or keys needed.</p>
+                        <div class="guide-code-box">
+                            <code># You already have Ollama installed!<br>ollama run gemma4:e4b<br># or: ollama run llama3.2</code>
+                        </div>
+                        <div class="guide-status" id="guideOllamaStatus">
+                            <span class="status-indicator-dot online"></span>
+                            <span>Ollama is currently running on localhost:11434</span>
+                        </div>
+                    </div>
+
+                    <!-- Option 2: Sazon Smart Local Engine -->
+                    <div class="guide-card">
+                        <div class="guide-header">
+                            <span class="guide-badge">Option 2: Zero Setup</span>
+                            <h4>🤖 Sazon Smart Local Engine (Built-in)</h4>
+                        </div>
+                        <p>Included directly in this app! Executes real system tools (CPU/RAM metrics, file exploration, commands, reports, and calculations) offline with zero configuration.</p>
+                        <div class="guide-pill">Select "🤖 Sazon Smart Local Engine" in the model dropdown</div>
+                    </div>
+
+                    <!-- Option 3: Free OpenRouter Models -->
+                    <div class="guide-card">
+                        <div class="guide-header">
+                            <span class="guide-badge">Option 3: Free Cloud</span>
+                            <h4>🆓 OpenRouter Free Tier</h4>
+                        </div>
+                        <p>Free cloud models like <code>Gemini 2.0 Flash (Free)</code> and <code>Llama 3.2 3B (Free)</code> via OpenRouter with zero cost.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="btnSelectLocalModel">Use Local Engine Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main JavaScript Controller -->
     <script src="/static/app.js"></script>
 </body>
 </html>
