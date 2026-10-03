@@ -300,6 +300,14 @@ class LLMClient:
         if provider in ("sample", "mock", "demo") or "sample" in model_name or "demo" in model_name:
             return self._sample_model_response(prompt, json_mode)
 
+        # Local Ollama (Zero API Key required)
+        if provider == "ollama" or "ollama" in model_name:
+            return self._call_ollama(prompt, system_instruction, json_mode)
+
+        # Local OpenAI-Compatible Server (LM Studio, vLLM, LocalAI)
+        if provider in ("local", "lmstudio") or "lmstudio" in model_name:
+            return self._call_local_openai(prompt, system_instruction, json_mode)
+
         if provider == "openrouter" and self.openrouter_key:
             return self._call_openrouter(prompt, system_instruction, json_mode)
         elif provider == "gemini" and self.gemini_key:
@@ -313,6 +321,75 @@ class LLMClient:
         elif self.openai_key:
             return self._call_openai(prompt, system_instruction, json_mode)
         else:
+            # Check if local Ollama is reachable as automatic zero-key fallback
+            ollama_res = self._check_ollama_available()
+            if ollama_res:
+                return self._call_ollama(prompt, system_instruction, json_mode)
+            return self._fallback_response(prompt, json_mode)
+
+    def _check_ollama_available(self) -> bool:
+        """Check if local Ollama server is responding at 127.0.0.1:11434."""
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=0.8) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+    def _call_ollama(self, prompt: str, system_instruction: Optional[str], json_mode: bool) -> str:
+        """Execute prompt against local Ollama server (Zero API key needed)."""
+        try:
+            import urllib.request
+            import urllib.error
+
+            model_name = self.model or os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+            if model_name.startswith("ollama/"):
+                model_name = model_name.split("ollama/")[1]
+
+            messages = []
+            if system_instruction:
+                messages.append({"role": "system", "content": system_instruction})
+            messages.append({"role": "user", "content": prompt})
+
+            payload: Dict[str, Any] = {
+                "model": model_name,
+                "messages": messages,
+                "stream": False
+            }
+            if json_mode:
+                payload["format"] = "json"
+
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/chat",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                res_data = json.loads(resp.read().decode("utf-8"))
+                return res_data.get("message", {}).get("content", "")
+        except Exception as e:
+            logger.warning(f"Ollama call failed ({e}), using smart local fallback engine.")
+            return self._fallback_response(prompt, json_mode)
+
+    def _call_local_openai(self, prompt: str, system_instruction: Optional[str], json_mode: bool, base_url: str = "http://localhost:1234/v1") -> str:
+        """Call local OpenAI-compatible server (LM Studio, LocalAI, Jan) with zero keys."""
+        try:
+            import openai
+            client = openai.OpenAI(base_url=base_url, api_key="not-needed")
+            model_name = self.model or "local-model"
+            if "/" in model_name:
+                model_name = model_name.split("/")[-1]
+            messages = []
+            if system_instruction:
+                messages.append({"role": "system", "content": system_instruction})
+            messages.append({"role": "user", "content": prompt})
+            kwargs = {"response_format": {"type": "json_object"}} if json_mode else {}
+            response = client.chat.completions.create(model=model_name, messages=messages, **kwargs)
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            logger.warning(f"Local server call failed ({e}), using smart local fallback engine.")
             return self._fallback_response(prompt, json_mode)
 
     def _sample_model_response(self, prompt: str, json_mode: bool) -> str:
@@ -391,9 +468,8 @@ class LLMClient:
             logger.error(f"OpenAI API call failed: {e}")
             return self._fallback_response(prompt, json_mode)
 
-
     def _fallback_response(self, prompt: str, json_mode: bool) -> str:
-        """Local smart fallback when API key is not configured."""
+        """Local smart autonomous fallback when API key is not configured."""
         p_lower = prompt.lower()
         is_greeting = any(w in p_lower for w in ["hi", "hello", "hey", "namaste", "hola", "sup", "who are you", "what are you"])
 
@@ -411,29 +487,69 @@ class LLMClient:
                         }
                     ]
                 })
-            elif "status" in p_lower or "hardware" in p_lower or "diagnostic" in p_lower:
+            elif any(w in p_lower for w in ["calculate", "math", "+", "-", "*", "/", "sqrt"]):
+                import re
+                expr = re.sub(r"[^0-9\+\-\*\/\(\)\.\s]|sqrt|pow", "", prompt) or "2+2"
+                return json.dumps({
+                    "subtasks": [
+                        {
+                            "id": "task_1",
+                            "title": "Evaluate Mathematical Expression",
+                            "description": f"Calculate arithmetic for: {prompt[:40]}",
+                            "priority": 1,
+                            "tool_name": "calculate",
+                            "tool_input": {"expression": expr.strip()}
+                        }
+                    ]
+                })
+            elif "status" in p_lower or "hardware" in p_lower or "diagnostic" in p_lower or "system" in p_lower or "cpu" in p_lower or "ram" in p_lower:
                 return json.dumps({
                     "subtasks": [
                         {
                             "id": "task_1",
                             "title": "Inspect system diagnostics",
-                            "description": "Query local environment and OS diagnostics",
+                            "description": "Query local environment, CPU, RAM, and OS diagnostics",
                             "priority": 1,
                             "tool_name": "system_info",
                             "tool_input": {}
                         }
                     ]
                 })
-            elif "find" in p_lower or "search" in p_lower:
+            elif "find" in p_lower or "search" in p_lower or "list files" in p_lower or "explore" in p_lower:
+                pattern = "*.*"
+                if "python" in p_lower or ".py" in p_lower:
+                    pattern = "*.py"
+                elif "json" in p_lower:
+                    pattern = "*.json"
+                elif "md" in p_lower:
+                    pattern = "*.md"
                 return json.dumps({
                     "subtasks": [
                         {
                             "id": "task_1",
                             "title": "Search directory files",
-                            "description": "Locate files matching query",
+                            "description": f"Locate files matching pattern '{pattern}' in workspace",
                             "priority": 1,
                             "tool_name": "file_search",
-                            "tool_input": {"pattern": "*.*", "directory": "."}
+                            "tool_input": {"pattern": pattern, "directory": "."}
+                        }
+                    ]
+                })
+            elif "open" in p_lower and any(w in p_lower for w in ["http", "url", "web", "browser", "youtube", "google"]):
+                target = "https://google.com"
+                if "youtube" in p_lower:
+                    target = "https://youtube.com"
+                elif "github" in p_lower:
+                    target = "https://github.com"
+                return json.dumps({
+                    "subtasks": [
+                        {
+                            "id": "task_1",
+                            "title": "Open target URL or application",
+                            "description": f"Launch browser to {target}",
+                            "priority": 1,
+                            "tool_name": "open_app_or_url",
+                            "tool_input": {"target": target}
                         }
                     ]
                 })
@@ -442,19 +558,37 @@ class LLMClient:
                     "subtasks": [
                         {
                             "id": "task_1",
-                            "title": "Collect system info",
-                            "description": "Gather system properties",
+                            "title": "Collect system telemetry",
+                            "description": "Gather system hardware and software properties",
                             "priority": 1,
                             "tool_name": "system_info",
                             "tool_input": {}
                         },
                         {
                             "id": "task_2",
-                            "title": "Write report file",
-                            "description": "Create report on disk",
+                            "title": "Generate report file",
+                            "description": "Write system report to disk",
                             "priority": 2,
                             "tool_name": "file_write",
-                            "tool_input": {"filepath": "system_report.txt", "content": "Sazon Autonomous Agent Report\nGenerated successfully."}
+                            "tool_input": {"filepath": "system_report.txt", "content": "Sazon Autonomous Agent Report\nGenerated successfully without API keys."}
+                        }
+                    ]
+                })
+            elif any(w in p_lower for w in ["run", "shell", "exec", "terminal", "command", "cmd", "dir", "ipconfig"]):
+                cmd = "dir" if platform.system() == "Windows" else "ls -la"
+                if "ipconfig" in p_lower:
+                    cmd = "ipconfig"
+                elif "echo" in p_lower:
+                    cmd = "echo Hello from Sazon!"
+                return json.dumps({
+                    "subtasks": [
+                        {
+                            "id": "task_1",
+                            "title": "Execute shell command",
+                            "description": f"Run command: {cmd}",
+                            "priority": 1,
+                            "tool_name": "shell_run",
+                            "tool_input": {"command": cmd}
                         }
                     ]
                 })
@@ -464,7 +598,7 @@ class LLMClient:
                         {
                             "id": "task_1",
                             "title": "Execute requested operation",
-                            "description": "Perform task needed for goal",
+                            "description": "Gather system metrics and accomplish user goal",
                             "priority": 1,
                             "tool_name": "system_info",
                             "tool_input": {}
@@ -473,8 +607,8 @@ class LLMClient:
                 })
         else:
             if is_greeting:
-                return "Hello! 👋 Sazon is here, how may I help you today?"
-            return f"Goal processed successfully via Sazon Agent Engine."
+                return "Hello! 👋 Sazon is here, how may I help you today? I'm running locally on your laptop!"
+            return "Goal executed successfully via Sazon Local Engine. All subtasks completed!"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -59,35 +59,74 @@ def _broadcast_event(event_type: str, data: Dict[str, Any]):
             pass
 
 
+def _get_ollama_models() -> List[Dict[str, Any]]:
+    """Query local Ollama server if available."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=1.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = []
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                models.append({
+                    "id": f"ollama/{name}",
+                    "name": f"🦙 Ollama: {name} (Local - No Key)",
+                    "provider": "ollama",
+                    "model": name,
+                    "badge": "Local (Free)",
+                    "category": "local"
+                })
+            return models
+    except Exception:
+        return []
+
+
 @app.get("/api/health")
 def health_check():
     """Health diagnostic endpoint."""
+    ollama_models = _get_ollama_models()
     return {
         "status": "online",
         "agent": "Sazon Autonomous AI Assistant",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "tools_registered": [t["name"] for t in default_registry.list_tools()],
         "has_openrouter_key": bool(os.getenv("OPENROUTER_API_KEY")),
         "has_gemini_key": bool(os.getenv("GEMINI_API_KEY")),
         "has_openai_key": bool(os.getenv("OPENAI_API_KEY")),
+        "ollama_available": len(ollama_models) > 0,
+        "ollama_models": [m["model"] for m in ollama_models],
+        "zero_key_mode_ready": True
     }
 
 
 @app.get("/api/models")
 def list_models():
-    """Available LLM presets including OpenRouter models."""
-    models = [
-        {"id": "sample/sazon", "name": "🤖 Sazon Demo (No Key Required)", "provider": "sample", "model": "sazon", "badge": "Demo"},
-        {"id": "openrouter/deepseek-r1", "name": "🧠 OpenRouter: DeepSeek R1", "provider": "openrouter", "model": "deepseek/deepseek-r1", "badge": "OpenRouter"},
-        {"id": "openrouter/claude-3.5-sonnet", "name": "⚡ OpenRouter: Claude 3.5 Sonnet", "provider": "openrouter", "model": "anthropic/claude-3.5-sonnet", "badge": "OpenRouter"},
-        {"id": "openrouter/llama-3.3-70b", "name": "🦙 OpenRouter: Llama 3.3 70B", "provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct", "badge": "OpenRouter"},
-        {"id": "openrouter/gemini-flash-free", "name": "🆓 OpenRouter: Gemini 2.0 Flash (Free)", "provider": "openrouter", "model": "google/gemini-2.0-flash-exp:free", "badge": "Free"},
-        {"id": "gemini/gemini-2.5-flash", "name": "⚡ Google Gemini 2.5 Flash", "provider": "gemini", "model": "gemini-2.5-flash", "badge": "Google"},
-        {"id": "gemini/gemini-1.5-pro", "name": "🧠 Google Gemini 1.5 Pro", "provider": "gemini", "model": "gemini-1.5-pro", "badge": "Google"},
-        {"id": "openai/gpt-4o-mini", "name": "🚀 OpenAI GPT-4o Mini", "provider": "openai", "model": "gpt-4o-mini", "badge": "OpenAI"},
-        {"id": "openai/gpt-4o", "name": "🔥 OpenAI GPT-4o", "provider": "openai", "model": "gpt-4o", "badge": "OpenAI"},
+    """Available LLM presets including Ollama local models and cloud providers."""
+    local_models = [
+        {"id": "sample/sazon", "name": "🤖 Sazon Smart Local Engine (Offline / No Key)", "provider": "sample", "model": "sazon", "badge": "Offline", "category": "local"},
     ]
-    return {"models": models}
+
+    # Query Ollama dynamically
+    ollama_list = _get_ollama_models()
+    if ollama_list:
+        local_models.extend(ollama_list)
+    else:
+        # Provide placeholder option so users know how to use it
+        local_models.append({"id": "ollama/llama3.2", "name": "🦙 Ollama: llama3.2 (Start Ollama locally)", "provider": "ollama", "model": "llama3.2", "badge": "Local", "category": "local"})
+
+    cloud_models = [
+        {"id": "openrouter/gemini-flash-free", "name": "🆓 OpenRouter: Gemini 2.0 Flash (Free)", "provider": "openrouter", "model": "google/gemini-2.0-flash-exp:free", "badge": "Free", "category": "free"},
+        {"id": "openrouter/deepseek-r1", "name": "🧠 OpenRouter: DeepSeek R1", "provider": "openrouter", "model": "deepseek/deepseek-r1", "badge": "OpenRouter", "category": "cloud"},
+        {"id": "openrouter/claude-3.5-sonnet", "name": "⚡ OpenRouter: Claude 3.5 Sonnet", "provider": "openrouter", "model": "anthropic/claude-3.5-sonnet", "badge": "OpenRouter", "category": "cloud"},
+        {"id": "openrouter/llama-3.3-70b", "name": "🦙 OpenRouter: Llama 3.3 70B", "provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct", "badge": "OpenRouter", "category": "cloud"},
+        {"id": "gemini/gemini-2.5-flash", "name": "⚡ Google Gemini 2.5 Flash", "provider": "gemini", "model": "gemini-2.5-flash", "badge": "Google", "category": "cloud"},
+        {"id": "gemini/gemini-1.5-pro", "name": "🧠 Google Gemini 1.5 Pro", "provider": "gemini", "model": "gemini-1.5-pro", "badge": "Google", "category": "cloud"},
+        {"id": "openai/gpt-4o-mini", "name": "🚀 OpenAI GPT-4o Mini", "provider": "openai", "model": "gpt-4o-mini", "badge": "OpenAI", "category": "cloud"},
+        {"id": "openai/gpt-4o", "name": "🔥 OpenAI GPT-4o", "provider": "openai", "model": "gpt-4o", "badge": "OpenAI", "category": "cloud"},
+    ]
+
+    return {"models": local_models + cloud_models}
 
 
 def _run_agent_thread(req: GoalRequest):
@@ -102,11 +141,12 @@ def _run_agent_thread(req: GoalRequest):
     _broadcast_event("start", {"goal": req.goal, "provider": req.llm_provider, "model": req.model})
 
     def step_callback(state: AgentState, step: Optional[ExecutionStep]):
-        _active_execution["subtasks"] = [t.model_dump() for t in state.subtasks]
+        _active_execution["subtasks"] = [t.model_dump(mode="json") for t in state.subtasks]
         if step:
-            _active_execution["steps"].append(step.model_dump())
+            step_data = step.model_dump(mode="json")
+            _active_execution["steps"].append(step_data)
             _broadcast_event("step", {
-                "step": step.model_dump(),
+                "step": step_data,
                 "subtasks": _active_execution["subtasks"]
             })
         else:
@@ -117,8 +157,9 @@ def _run_agent_thread(req: GoalRequest):
     try:
         executor = SazonExecutor(goal_request=req, step_callback=step_callback)
         result = executor.run()
-        _active_execution["final_result"] = result.model_dump()
-        _broadcast_event("complete", result.model_dump())
+        res_data = result.model_dump(mode="json")
+        _active_execution["final_result"] = res_data
+        _broadcast_event("complete", res_data)
     except Exception as e:
         logger.error(f"Error executing agent goal: {e}")
         _broadcast_event("error", {"error": str(e)})
@@ -145,10 +186,10 @@ async def event_stream():
     async def sse_generator():
         try:
             # Yield initial status
-            yield f"data: {json.dumps({'event': 'status', 'data': _active_execution})}\n\n"
+            yield f"data: {json.dumps({'event': 'status', 'data': _active_execution}, default=str)}\n\n"
             while True:
                 payload = await queue.get()
-                yield f"data: {json.dumps(payload)}\n\n"
+                yield f"data: {json.dumps(payload, default=str)}\n\n"
         except asyncio.CancelledError:
             pass
         finally:
