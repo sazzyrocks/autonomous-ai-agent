@@ -219,7 +219,7 @@ class ToolRegistry:
 
         # System Info
         def system_info() -> str:
-            return json.dumps({
+            info = {
                 "os": platform.system(),
                 "os_release": platform.release(),
                 "os_version": platform.version(),
@@ -228,9 +228,22 @@ class ToolRegistry:
                 "python_version": platform.python_version(),
                 "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "working_dir": os.getcwd()
-            })
+            }
+            try:
+                import psutil
+                info["cpu_percent"] = psutil.cpu_percent(interval=0.05)
+                mem = psutil.virtual_memory()
+                info["ram_percent"] = mem.percent
+                info["ram_total_gb"] = round(mem.total / (1024 ** 3), 1)
+                info["ram_used_gb"] = round(mem.used / (1024 ** 3), 1)
+                disk = psutil.disk_usage(os.getcwd())
+                info["disk_percent"] = disk.percent
+                info["disk_free_gb"] = round(disk.free / (1024 ** 3), 1)
+            except Exception:
+                pass
+            return json.dumps(info)
 
-        self.register("system_info", system_info, "Get current system and environment diagnostics. Args: none")
+        self.register("system_info", system_info, "Get current system and environment diagnostics (CPU, RAM, Disk, OS). Args: none")
 
         # Calculate
         def calculate(expression: str) -> str:

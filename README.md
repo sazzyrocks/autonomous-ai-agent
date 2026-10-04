@@ -1,17 +1,25 @@
-# 🤖 Sazon - Cute Floating Laptop AI Assistant
+# 🤖 Sazon — Autonomous AI Laptop Assistant v2.2
 
-**Sazon** is a cute, floating, draggable AI mascot assistant for your laptop. When you launch the application, Sazon pops up on your screen as an always-on-top mascot widget greeting you with:
+**Sazon** is a modern, high-performance autonomous AI desktop mascot and assistant for your laptop. Powered by **Framer Motion spring physics**, sleek glassmorphic aesthetics, real-time SSE streaming, and **100% Zero-API-Key local execution (Ollama & Offline Engine)**.
 
 > **"Hello! Sazon is here, how may I help you today?"**
 
 ---
 
-## ✨ Mascot Widget Features
+## ✨ Features & Next-Gen UI/UX
 
-- 🤖 **Cute Floating Widget**: Sleek, frameless dark card overlay that floats above your active applications.
-- ⤭ **Click & Drag Anywhere**: Click and drag the widget anywhere across your laptop screen.
-- ➖ **Compact Bubble Mode**: Click `—` to collapse Sazon into a cute floating side bubble (`🤖 Sazon`). Click the bubble anytime to expand the full assistant box!
-- 💻 **Laptop Task Automation**: Search files, inspect system hardware, run commands, open web apps, and create reports.
+- 🎭 **Framer Motion Spring Physics**: Fluid micro-interactions, staggered card entrances, springy progress indicators, and interactive mascot orb reaction states.
+- 🦙 **100% Zero API Key Local Execution**:
+  - **Ollama Integration**: Autodetects local models (`gemma4`, `llama3.2`, `mistral`, `deepseek-r1`) via `localhost:11434` with zero API keys or external internet required.
+  - **Sazon Smart Local Engine**: Built-in offline task planner and system executor for real laptop automation.
+  - **Free Cloud Models**: Direct support for OpenRouter free models (`Gemini 2.0 Flash Free`).
+- ⚡ **Command Palette (`Ctrl + K` / `Cmd + K`)**: Raycast/Linear-style spotlight search for quick actions, system diagnostics, model switching, export, and history.
+- 📊 **Live Hardware Telemetry Bar**: Real-time meters for laptop CPU load, RAM usage, and Disk space.
+- 📜 **Execution History & Re-run Drawer**: Automatically saves previous execution runs in a slide-over panel with 1-click re-run.
+- 📄 **Export Reports (Markdown & JSON)**: One-click export of structured task reports with subtasks, tool execution steps, observations, and timestamps.
+- 🔊 **Synthesizer Audio Feedback**: Web Audio API micro-chimes for clicks, execution start, subtask completion, and goal success (with mute toggle).
+- 🤖 **Floating Mascot Companion Mode**: Minimize Sazon into a cute floating mascot widget with speech bubble greeting in the corner of your screen.
+- 💻 **Laptop Task Automation Tools**: Hardware inspection, file search, directory creation, file read/write, browser/app launching, shell command execution, and math evaluation.
 
 ---
 
@@ -25,62 +33,61 @@ cd autonomous-ai-agent
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment (Optional API Key)
+### 2. Zero-API-Key Mode (No Setup Required!)
 
-Copy `.env.example` to `.env`:
+You can run Sazon **without any API keys**:
 
-```bash
-cp .env.example .env
-```
+- **Option A (Ollama - Recommended):** If you have Ollama installed, run `ollama serve` and Sazon will automatically detect your local models (e.g. `gemma4:e4b`, `llama3.2`).
+- **Option B (Built-in Offline Engine):** Select **🤖 Sazon Smart Local Engine (Offline / No Key)** in the dropdown. It automates local laptop tools completely offline.
+- **Option C (Cloud Keys - Optional):** Copy `.env.example` to `.env` and configure `GEMINI_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`.
 
-Add your Gemini or OpenAI API key to `.env` (Sazon includes smart local fallbacks if an API key is not configured):
+### 3. Launch Modes
 
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-DEFAULT_LLM_PROVIDER=gemini
-```
-
-### 3. Launch Modes (App & Web Versions)
-
-Sazon features two modern launch modes (both with the next-gen glassmorphic UI) plus a legacy fallback:
-
-- **📱 Desktop App Version (Standalone App Window):**
+- **📱 Desktop App Window (pywebview):**
   ```bash
   python run.py
   # or: python run.py --app
   ```
-  *Launches Sazon as a dedicated native desktop application window (no browser address bar/tabs).*
 
-- **🌐 Web Version (Browser Dashboard):**
+- **🌐 Web Dashboard (Browser):**
   ```bash
   python run.py --web
   ```
-  *Launches Sazon in your default web browser on `http://127.0.0.1:8000`.*
+  *Opens in default browser on `http://127.0.0.1:8000`.*
 
 - **🖥️ Legacy Tkinter GUI:**
   ```bash
   python run.py --gui
   ```
-  *Launches the original Tkinter desktop window.*
-
 
 ---
 
-## 🛠️ Laptop Control Tools
+## ⌨️ Keyboard Shortcuts
 
-- 💻 `system_status`: Inspect CPU, RAM, Disk space, and OS environment.
-- 🔍 `file_search`: Search files across folders by wildcard pattern.
+| Shortcut | Action |
+|---|---|
+| <kbd>Ctrl</kbd> + <kbd>K</kbd> | Open Command Palette |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Execute Current Goal |
+| <kbd>Esc</kbd> | Close Modal / Drawer / Palette |
+
+---
+
+## 🛠️ Built-in Laptop Tools
+
+- 💻 `system_info`: Inspect CPU load %, RAM usage, Disk space, OS, and Python environment.
+- 🔍 `file_search`: Search files across directories with wildcard patterns.
 - 📁 `create_folder`: Create directories.
 - 📄 `file_read` & `file_write`: Read or write local files.
 - 🌐 `open_app_or_url`: Launch local applications or web URLs.
-- ⚡ `shell_run`: Execute terminal/shell commands on your laptop.
+- ⚡ `run_terminal_command`: Execute shell commands safely.
+- 🧮 `calculate`: Evaluate mathematical and arithmetic expressions.
 
 ---
 
 ## 🧪 Testing
 
-Run pytest suite:
+Run automated pytest test suite:
 
 ```bash
-pytest
+python -m pytest
 ```

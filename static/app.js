@@ -1,11 +1,12 @@
 /**
- * Sazon AI Agent — Next-Gen Frontend Controller
+ * Sazon AI Agent — Next-Gen Frontend Controller v2.2
  * Powered by Framer Motion Spring Physics, Web Audio Micro-Chimes, 
- * Real-Time SSE Streaming, and Zero-API-Key Local Integration (Ollama / Local Engine).
+ * Real-Time SSE Streaming, Command Palette (Ctrl+K), Live Telemetry,
+ * Saved Execution History, and Zero-API-Key Local Integration (Ollama / Local Engine).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
+    // DOM Elements - Core Navigation & Engine
     const promptInput = document.getElementById('promptInput');
     const btnExecute = document.getElementById('btnExecute');
     const modelSelect = document.getElementById('modelSelect');
@@ -26,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logSearchInput = document.getElementById('logSearchInput');
     const btnClearConsole = document.getElementById('btnClearConsole');
     const btnCopyConsole = document.getElementById('btnCopyConsole');
+    const btnExportReport = document.getElementById('btnExportReport');
     const btnRefreshHealth = document.getElementById('btnRefreshHealth');
     
     // Mascot & Status
@@ -34,11 +36,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const agentStatusText = document.getElementById('agentStatusText');
     const orbCore = document.getElementById('orbCore');
     
-    // Telemetry Stats
+    // Telemetry Stats (Terminal Footer)
     const statTime = document.getElementById('statTime');
     const statSteps = document.getElementById('statSteps');
     const statProvider = document.getElementById('statProvider');
     const statZeroKey = document.getElementById('statZeroKey');
+
+    // Telemetry Bar (Header)
+    const meterCpu = document.getElementById('meterCpu');
+    const valCpu = document.getElementById('valCpu');
+    const meterRam = document.getElementById('meterRam');
+    const valRam = document.getElementById('valRam');
+    const meterDisk = document.getElementById('meterDisk');
+    const valDisk = document.getElementById('valDisk');
+    const chipOllama = document.getElementById('chipOllama');
 
     // Utility & Modal Controls
     const btnZeroKeyGuide = document.getElementById('btnZeroKeyGuide');
@@ -46,6 +57,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCloseZeroKeyModal = document.getElementById('btnCloseZeroKeyModal');
     const btnSelectLocalModel = document.getElementById('btnSelectLocalModel');
     const guideOllamaStatus = document.getElementById('guideOllamaStatus');
+
+    // Command Palette Elements
+    const btnOpenCmdPalette = document.getElementById('btnOpenCmdPalette');
+    const cmdPaletteModal = document.getElementById('cmdPaletteModal');
+    const cmdSearchInput = document.getElementById('cmdSearchInput');
+    const cmdListContainer = document.getElementById('cmdListContainer');
+
+    // History Drawer Elements
+    const btnToggleHistory = document.getElementById('btnToggleHistory');
+    const historyDrawer = document.getElementById('historyDrawer');
+    const btnCloseHistory = document.getElementById('btnCloseHistory');
+    const btnClearHistory = document.getElementById('btnClearHistory');
+    const historyListContainer = document.getElementById('historyListContainer');
 
     // Sound Controls
     const btnToggleSound = document.getElementById('btnToggleSound');
@@ -68,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTasks = [];
     let activeFilter = 'all';
     let orbIdleAnimation = null;
+    let telemetryPollTimer = null;
 
     // Framer Motion Reference (from /static/vendor/motion.js)
     const Motion = window.Motion;
@@ -99,6 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Navbar entrance
         animateSpring('.navbar-glass', { y: [-24, 0], opacity: [0, 1] }, { duration: 0.6, stiffness: 300 });
+
+        // Telemetry bar entrance
+        animateSpring('#telemetryBar', { y: [-15, 0], opacity: [0, 1] }, { duration: 0.5, stiffness: 320, delay: 0.08 });
 
         // Left Panel (Prompt & Timeline)
         animateSpring('#promptCard', { x: [-30, 0], opacity: [0, 1] }, { duration: 0.7, stiffness: 280, delay: 0.1 });
@@ -250,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(message)}</span>`;
         container.appendChild(toast);
 
-        // Framer Motion Entrance
         animateSpring(toast, { y: [-20, 0], opacity: [0, 1], scale: [0.9, 1] }, { stiffness: 450 });
 
         setTimeout(() => {
@@ -265,7 +292,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================================
-    // 4. Dynamic Model Loading & Ollama Detection
+    // 4. Live Telemetry Polling (CPU / RAM / Disk)
+    // =========================================================================
+
+    async function fetchSystemTelemetry() {
+        try {
+            const res = await fetch('/api/system');
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // CPU
+            if (data.cpu_percent !== undefined) {
+                const cpu = Math.round(data.cpu_percent);
+                valCpu.textContent = `${cpu}%`;
+                if (meterCpu) meterCpu.style.width = `${Math.min(100, Math.max(5, cpu))}%`;
+            }
+
+            // RAM
+            if (data.ram_percent !== undefined && data.ram_used_gb !== undefined && data.ram_total_gb !== undefined) {
+                valRam.textContent = `${data.ram_used_gb} GB / ${data.ram_total_gb} GB`;
+                if (meterRam) meterRam.style.width = `${data.ram_percent}%`;
+            }
+
+            // Disk
+            if (data.disk_free_gb !== undefined) {
+                valDisk.textContent = `${data.disk_free_gb} GB Free`;
+                if (meterDisk && data.disk_percent) meterDisk.style.width = `${data.disk_percent}%`;
+            }
+        } catch (e) {
+            // Silently ignore telemetry poll glitch
+        }
+    }
+
+    // =========================================================================
+    // 5. Dynamic Model Loading & Ollama Detection
     // =========================================================================
 
     async function loadAvailableModels() {
@@ -275,7 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             const models = data.models || [];
 
-            // Clear optgroups
             optgroupLocal.innerHTML = '';
             optgroupFree.innerHTML = '';
             optgroupCloud.innerHTML = '';
@@ -303,7 +362,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Update Ollama guide indicator
+            if (chipOllama) {
+                if (hasOllama) {
+                    chipOllama.textContent = 'Online (Ready)';
+                    chipOllama.style.color = '#34d399';
+                    chipOllama.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                } else {
+                    chipOllama.textContent = 'Offline (Run `ollama serve`)';
+                    chipOllama.style.color = '#f59e0b';
+                    chipOllama.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+                }
+            }
+
             if (guideOllamaStatus) {
                 if (hasOllama) {
                     guideOllamaStatus.innerHTML = `
@@ -363,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // 5. Execution Logging & Console
+    // 6. Execution Logging & Console
     // =========================================================================
 
     function logToConsole(type, message, details = null) {
@@ -395,7 +465,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         consoleOutput.appendChild(entry);
 
-        // Framer Motion entry micro-animation for log entry
         if (Motion) {
             Motion.animate(entry, { opacity: [0, 1], y: [6, 0] }, { duration: 0.18 });
         }
@@ -404,7 +473,6 @@ document.addEventListener('DOMContentLoaded', () => {
             consoleOutput.scrollTop = consoleOutput.scrollHeight;
         }
 
-        // Apply search filter if active
         if (logSearchInput.value.trim()) {
             filterLogs();
         }
@@ -444,8 +512,32 @@ document.addEventListener('DOMContentLoaded', () => {
         playSoundEffect('click');
     });
 
+    // Export Execution Report Button
+    btnExportReport.addEventListener('click', async () => {
+        playSoundEffect('click');
+        try {
+            const res = await fetch('/api/export?format=markdown');
+            if (!res.ok) throw new Error('Export failed');
+            const mdContent = await res.text();
+
+            const blob = new Blob([mdContent], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sazon_report_${new Date().toISOString().replace(/[:.]/g, '-')}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('📄 Execution report downloaded!', 'success');
+        } catch (e) {
+            showToast('Could not download report: ' + e.message, 'error');
+        }
+    });
+
     // =========================================================================
-    // 6. Subtask Timeline Rendering with Spring Animations
+    // 7. Subtask Timeline Rendering with Spring Animations
     // =========================================================================
 
     function renderSubtasks(tasks) {
@@ -475,7 +567,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = t.status || 'pending';
             if (status === 'completed') completedCount++;
 
-            // Filter check
             if (activeFilter === 'in_progress' && status !== 'in_progress') return;
             if (activeFilter === 'completed' && status !== 'completed') return;
 
@@ -523,7 +614,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ` : ''}
             `;
 
-            // Toggle details drawer on click
             const mainRow = card.querySelector('.subtask-main-row');
             const detailsPanel = card.querySelector('.subtask-details-panel');
             if (mainRow && detailsPanel) {
@@ -539,8 +629,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             subtaskContainer.appendChild(card);
-
-            // Framer Motion spring entrance for cards
             animateSpring(card, { opacity: [0, 1], y: [16, 0], scale: [0.97, 1] }, { stiffness: 400, damping: 26 });
         });
 
@@ -551,7 +639,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
         progressPercent.textContent = `${pct}%`;
         
-        // Spring animated progress bar width
         if (Motion) {
             Motion.animate(progressBarFill, { width: `${pct}%` }, { type: 'spring', stiffness: 220, damping: 28 });
         } else {
@@ -571,7 +658,208 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // 7. Real-Time SSE Streaming
+    // 8. History Storage & Drawer Management
+    // =========================================================================
+
+    function saveToHistory(goal, status, stepsCount, executionTime) {
+        try {
+            const raw = localStorage.getItem('sazon_history');
+            const list = raw ? JSON.parse(raw) : [];
+            const item = {
+                id: 'run_' + Date.now(),
+                goal: goal,
+                status: status,
+                steps: stepsCount,
+                time: executionTime || '0.0s',
+                timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            };
+            list.unshift(item);
+            if (list.length > 25) list.pop();
+            localStorage.setItem('sazon_history', JSON.stringify(list));
+            renderHistory();
+        } catch (e) {
+            console.warn('Could not save history:', e);
+        }
+    }
+
+    function renderHistory() {
+        if (!historyListContainer) return;
+        try {
+            const raw = localStorage.getItem('sazon_history');
+            const list = raw ? JSON.parse(raw) : [];
+
+            if (list.length === 0) {
+                historyListContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>No past execution sessions saved yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            historyListContainer.innerHTML = '';
+            list.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'history-item-card';
+                card.innerHTML = `
+                    <div class="history-item-header">
+                        <span>🕒 ${item.timestamp}</span>
+                        <span class="badge-status" style="color:${item.status === 'success' ? '#34d399' : '#f43f5e'}">${item.status}</span>
+                    </div>
+                    <div class="history-goal-text">${escapeHtml(item.goal)}</div>
+                    <div class="history-item-footer">
+                        <span>${item.steps} steps (${item.time})</span>
+                        <button class="history-rerun-btn">⚡ Re-run</button>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => {
+                    promptInput.value = item.goal;
+                    promptInput.focus();
+                    historyDrawer.classList.add('hidden');
+                    showToast('Loaded goal into input!', 'info');
+                    playSoundEffect('click');
+                });
+
+                historyListContainer.appendChild(card);
+            });
+        } catch (e) {
+            console.warn('Could not render history:', e);
+        }
+    }
+
+    btnToggleHistory.addEventListener('click', () => {
+        historyDrawer.classList.toggle('hidden');
+        if (!historyDrawer.classList.contains('hidden')) {
+            renderHistory();
+            animateSpring('.drawer-panel', { x: [60, 0], opacity: [0, 1] }, { stiffness: 350 });
+            playSoundEffect('click');
+        }
+    });
+
+    btnCloseHistory.addEventListener('click', () => {
+        historyDrawer.classList.add('hidden');
+    });
+
+    btnClearHistory.addEventListener('click', () => {
+        localStorage.removeItem('sazon_history');
+        renderHistory();
+        showToast('History cleared', 'info');
+        playSoundEffect('click');
+    });
+
+    historyDrawer.addEventListener('click', (e) => {
+        if (e.target === historyDrawer) {
+            historyDrawer.classList.add('hidden');
+        }
+    });
+
+    // =========================================================================
+    // 9. Command Palette (Ctrl+K)
+    // =========================================================================
+
+    const commandPaletteActions = [
+        { id: 'exec', title: 'Execute Current Goal', icon: '🚀', tag: 'Action', run: () => handleExecute() },
+        { id: 'diag', title: 'Run System Diagnostic', icon: '💻', tag: 'Tool', run: () => { promptInput.value = 'Check system status and hardware diagnostic details'; handleExecute(); } },
+        { id: 'files', title: 'Explore Workspace Files', icon: '🔍', tag: 'Tool', run: () => { promptInput.value = 'Search for python and config files in current workspace'; handleExecute(); } },
+        { id: 'report', title: 'Build System Report', icon: '📝', tag: 'Tool', run: () => { promptInput.value = 'Create a comprehensive system report file on disk'; handleExecute(); } },
+        { id: 'math', title: 'Calculate Math Expression', icon: '🧮', tag: 'Tool', run: () => { promptInput.value = 'Calculate math expression: (1024 * 8) + sqrt(256)'; handleExecute(); } },
+        { id: 'shell', title: 'Run Shell Command', icon: '⚡', tag: 'Tool', run: () => { promptInput.value = 'Run shell command to check network ip configuration'; handleExecute(); } },
+        { id: 'mod_local', title: 'Switch to Sazon Smart Local Engine', icon: '🤖', tag: 'Engine', run: () => { modelSelect.value = 'sample/sazon'; updateSelectedModelBadge(); } },
+        { id: 'mod_free', title: 'Switch to Gemini Flash (Free)', icon: '🆓', tag: 'Engine', run: () => { modelSelect.value = 'openrouter/gemini-flash-free'; updateSelectedModelBadge(); } },
+        { id: 'guide', title: 'Open Zero-Key Guide', icon: '💡', tag: 'Help', run: () => btnZeroKeyGuide.click() },
+        { id: 'history', title: 'View Execution History', icon: '📜', tag: 'View', run: () => btnToggleHistory.click() },
+        { id: 'export', title: 'Export Execution Report (MD)', icon: '📄', tag: 'Export', run: () => btnExportReport.click() },
+        { id: 'copy', title: 'Copy Console Logs', icon: '📋', tag: 'Console', run: () => btnCopyConsole.click() },
+        { id: 'clear', title: 'Clear Console Output', icon: '🗑️', tag: 'Console', run: () => btnClearConsole.click() },
+        { id: 'sound', title: 'Toggle Audio Feedback', icon: '🔊', tag: 'Settings', run: () => btnToggleSound.click() },
+        { id: 'mascot', title: 'Toggle Mascot Mini-Companion', icon: '🤖', tag: 'View', run: () => btnMiniMascot.click() },
+    ];
+
+    function openCommandPalette() {
+        cmdPaletteModal.classList.remove('hidden');
+        cmdSearchInput.value = '';
+        renderCommandList('');
+        cmdSearchInput.focus();
+        animateSpring('.cmd-palette-card', { scale: [0.92, 1], opacity: [0, 1] }, { stiffness: 420, damping: 25 });
+        playSoundEffect('click');
+    }
+
+    function closeCommandPalette() {
+        cmdPaletteModal.classList.add('hidden');
+    }
+
+    function renderCommandList(query) {
+        const q = query.toLowerCase().trim();
+        const filtered = commandPaletteActions.filter(a => 
+            !q || a.title.toLowerCase().includes(q) || a.tag.toLowerCase().includes(q)
+        );
+
+        cmdListContainer.innerHTML = '';
+        if (filtered.length === 0) {
+            cmdListContainer.innerHTML = '<div style="padding:16px; text-align:center; color:#64748b; font-size:0.8rem;">No matching commands</div>';
+            return;
+        }
+
+        filtered.forEach((cmd, idx) => {
+            const item = document.createElement('div');
+            item.className = 'cmd-item' + (idx === 0 ? ' selected' : '');
+            item.innerHTML = `
+                <div class="cmd-item-left">
+                    <span class="cmd-item-icon">${cmd.icon}</span>
+                    <span class="cmd-item-title">${escapeHtml(cmd.title)}</span>
+                </div>
+                <span class="cmd-item-tag">${cmd.tag}</span>
+            `;
+            item.addEventListener('click', () => {
+                closeCommandPalette();
+                cmd.run();
+            });
+            cmdListContainer.appendChild(item);
+        });
+    }
+
+    cmdSearchInput.addEventListener('input', (e) => {
+        renderCommandList(e.target.value);
+    });
+
+    cmdSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeCommandPalette();
+        } else if (e.key === 'Enter') {
+            const first = cmdListContainer.querySelector('.cmd-item');
+            if (first) {
+                first.click();
+            }
+        }
+    });
+
+    btnOpenCmdPalette.addEventListener('click', openCommandPalette);
+
+    cmdPaletteModal.addEventListener('click', (e) => {
+        if (e.target === cmdPaletteModal) {
+            closeCommandPalette();
+        }
+    });
+
+    // Global Keyboard Shortcuts (Ctrl+K, Esc)
+    window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            if (cmdPaletteModal.classList.contains('hidden')) {
+                openCommandPalette();
+            } else {
+                closeCommandPalette();
+            }
+        } else if (e.key === 'Escape') {
+            if (!cmdPaletteModal.classList.contains('hidden')) closeCommandPalette();
+            if (!zeroKeyModal.classList.contains('hidden')) zeroKeyModal.classList.add('hidden');
+            if (!historyDrawer.classList.contains('hidden')) historyDrawer.classList.add('hidden');
+        }
+    });
+
+    // =========================================================================
+    // 10. Real-Time SSE Streaming
     // =========================================================================
 
     function initEventStream() {
@@ -610,6 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     triggerOrbReaction('success');
                     playSoundEffect('success');
                     showToast('🎉 Goal executed successfully!', 'success');
+                    saveToHistory(promptInput.value, 'success', statSteps.textContent, statTime.textContent);
                 } else if (evType === 'error') {
                     setAgentState('error', 'Execution Error');
                     logToConsole('ERROR', `Execution Error: ${data.error}`);
@@ -618,6 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     triggerOrbReaction('error');
                     playSoundEffect('error');
                     showToast(`Error: ${data.error}`, 'error');
+                    saveToHistory(promptInput.value, 'failed', statSteps.textContent, statTime.textContent);
                 }
             } catch (err) {
                 console.error('Failed to parse SSE event:', err);
@@ -749,6 +1039,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logToConsole('SYSTEM', `Health Diagnostic: Agent ${data.status.toUpperCase()}`, data);
             showToast(`Diagnostics: ${data.tools_registered.length} tools loaded`, 'success');
             await loadAvailableModels();
+            await fetchSystemTelemetry();
         } catch (err) {
             logToConsole('ERROR', 'Health check failed: ' + err.message);
             showToast('Health check failed', 'error');
@@ -773,7 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnSelectLocalModel.addEventListener('click', () => {
-        // Select first local model in dropdown (Ollama or Sazon Local Engine)
         if (optgroupLocal && optgroupLocal.children.length > 0) {
             modelSelect.value = optgroupLocal.children[0].value;
             updateSelectedModelBadge();
@@ -818,4 +1108,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initPageEntrances();
     initEventStream();
     loadAvailableModels();
+    fetchSystemTelemetry();
+    renderHistory();
+
+    // Telemetry polling every 6 seconds
+    telemetryPollTimer = setInterval(fetchSystemTelemetry, 6000);
 });

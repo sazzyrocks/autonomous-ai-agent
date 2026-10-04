@@ -64,3 +64,19 @@ def test_executor():
     assert result.success is True
     assert len(result.tasks) > 0
     assert len(result.steps) > 0
+
+
+def test_ollama_llm_client():
+    import json
+    from unittest.mock import patch, MagicMock
+    from agent import LLMClient
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps({"message": {"content": "Hello from Sazon Ollama"}}).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        llm = LLMClient(provider="ollama", model="gemma4:e4b")
+        res = llm.generate("Hello Sazon")
+        assert "Hello from Sazon Ollama" in res
+
